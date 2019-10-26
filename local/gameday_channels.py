@@ -1,3 +1,4 @@
+import logging
 import os
 
 import aiohttp
@@ -11,6 +12,12 @@ from dotenv import load_dotenv
 # Keep all server-specific variables in a .env file (easier configuration)
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
+
+logging.basicConfig(
+    level=logging.INFO,
+    datefmt="%Y-%m-%d %H:%M:%S",
+    format="%(asctime)s - %(module)s.%(funcName)s - %(levelname)s - %(message)s",
+)
 
 # Non-Secret Items
 GUILD = int(os.getenv("DISCORD_GUILD"))
@@ -40,7 +47,7 @@ class ChannelManagerClient(discord.Client):
 
     async def on_ready(self):
         guild = discord.utils.get(self.guilds, id=GUILD)
-        print(f"{self.user} is connected to the following guild:\n" f"{guild.name} (id: {guild.id})")
+        logging.info("%s is connected to the %s server (id: %s).", self.user, guild.name, guild.id)
 
         await self.change_presence(
             activity=discord.Activity(type=discord.ActivityType.watching, name="the channel permissions.")
@@ -48,9 +55,10 @@ class ChannelManagerClient(discord.Client):
 
 
     async def get_schedule(self):
-        print("Retrieving today's NHL daily schedule now.")
+        logging.info("Retrieving today's NHL daily schedule now.")
+        date = datetime.now().strftime("%Y-%m-%d")
         async with aiohttp.ClientSession() as cs:
-            async with cs.get("http://statsapi.web.nhl.com/api/v1/schedule?teamId=1") as r:
+            async with cs.get(f"http://statsapi.web.nhl.com/api/v1/schedule?teamId=1&date={date}&expand=schedule.linescore") as r:
                 return await r.json()  # returns dict
 
     async def game_state_check(self):
@@ -63,7 +71,7 @@ class ChannelManagerClient(discord.Client):
             num_games = schedule.get("totalGames")
 
             if num_games == 0:
-                print("No game scheduled today - sleep for 24 hours and come back tomorrow!")
+                logging.info("No game scheduled today - sleep for 24 hours and come back tomorrow!")
                 await channel_notificiations.send("@here There is no game scheduled today - see you tomorrow!")
                 await asyncio.sleep(SLEEP_NO_GAME)
                 continue
@@ -84,31 +92,50 @@ class ChannelManagerClient(discord.Client):
                     "switch the channels and then finish sleeping until game time. See you later!"
                 )
 
-                print(f"Sleeping for {sleep_time_ss - TIME_THRESHOLD} seconds (game_time - 1 hour) to switch the channels.")
-                await asyncio.sleep(sleep_time_ss - TIME_THRESHOLD)
+                pregame_sleep_time = sleep_time_ss - TIME_THRESHOLD
+                logging.info(f"Sleeping for %s seconds (game_time - 1 hour) to switch the channels.", pregame_sleep_time)
+                await asyncio.sleep(pregame_sleep_time)
                 await switch_to_gameday()
-                print(f"Sleeping for {TIME_THRESHOLD + SLEEP_IN_GAME} seconds (1 hour + 10 minutes) to start checking again.")
-                await asyncio.sleep(TIME_THRESHOLD + SLEEP_IN_GAME)
+                gamestart_sleep_time = TIME_THRESHOLD + SLEEP_IN_GAME
+                logging(f"Sleeping for %s seconds (1 hour + 10 minutes) to start checking again.", gamestart_sleep_time)
+                await asyncio.sleep(gamestart_sleep_time)
             else:
                 game_state = game.get("status").get("abstractGameState")
                 if game_state != "Final":
+                    logging.info("Game is not Final, current status : %s", game_state)
                     await asyncio.sleep(SLEEP_IN_GAME)
                 else:
-                    await channel_notificiations.send(
-                        f"@here I have detected that today's game has ended. "
-                        "I will be back in about 2.5 hours to switch the channels back."
-                    )
+                    # Calculate if we had to re-run this script and we interrupted the previous sleep
+                    game = schedule.get("dates")[0].get("games")[0]
+                    game_end = game.get('linescore').get('periods')[-1].get('endTime')
+                    game_end = dateparser.parse(game_end)
+                    now = datetime.now(game_date.tzinfo)
+                    ss_since_end = (now - game_end).total_seconds()
 
-                    print("Game ended - sleeping for 2.5 hours.")
-                    await asyncio.sleep(SLEEP_END_GAME)
-                    await switch_to_daily()
-                    print("Channels are swithced - sleeping for ~8 hours for the schedule to refresh.")
+                    if ss_since_end > SLEEP_END_GAME:
+                        await channel_notificiations.send(
+                            f"@here I have detected that today's game has ended and 2.5 hours has passed. "
+                            "I will switch the channels now!"
+                        )
+                        await switch_to_daily()
+                    else:
+                        endgame_sleep_time = SLEEP_END_GAME - ss_since_end
+
+                        await channel_notificiations.send(
+                            f"@here I have detected that today's game has ended. "
+                            f"I will be back in a maximum of 2.5 hours (exactly - {int(endgame_sleep_time)} seconds) "
+                            f"to switch the channels back."
+                        )
+                        logging.info("Game ended - sleeping for 2.5 hours max (actual time - %s seconds).", endgame_sleep_time)
+                        await asyncio.sleep(endgame_sleep_time)
+                        await switch_to_daily()
+
+                    logging.info("Channels are swithced - sleeping for ~8 hours for the schedule to refresh.")
                     await asyncio.sleep(SLEEP_REFRESH)
 
 
 async def switch_to_gameday():
-    print("Switching permissions to the Gameday channel.")
-    channel_testing = client.get_channel(CHANNEL_TESTING)
+    logging.info("Switching permissions to the Gameday channel.")
     channel_daily = client.get_channel(CHANNEL_DEVILSDAILY)
     channel_gameday = client.get_channel(CHANNEL_GAMEDAY)
 
@@ -124,8 +151,7 @@ async def switch_to_gameday():
 
 
 async def switch_to_daily():
-    print("Switching permissions to the Devils Daily channel.")
-    channel_testing = client.get_channel(CHANNEL_TESTING)
+    logging.info("Switching permissions to the Devils Daily channel.")
     channel_daily = client.get_channel(CHANNEL_DEVILSDAILY)
     channel_gameday = client.get_channel(CHANNEL_GAMEDAY)
 
