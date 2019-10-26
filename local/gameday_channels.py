@@ -37,6 +37,13 @@ SLEEP_END_GAME = 9000  # 2.5 Hours
 SLEEP_REFRESH = 36000  # 10 Hours
 TIME_THRESHOLD = 3600  # 1 Hour - Switch to Gameday Channel
 
+# Permission Overwrites
+closed_overwrite = discord.PermissionOverwrite()
+closed_overwrite.send_messages = False
+
+open_overwrite = discord.PermissionOverwrite()
+open_overwrite.send_messages = True
+
 
 class ChannelManagerClient(discord.Client):
     def __init__(self, *args, **kwargs):
@@ -144,10 +151,10 @@ async def switch_to_gameday():
     await channel_daily.send(
         f"One hour until game time - this channel is now **closed**. Please use {channel_gameday.mention}!"
     )
-    await channel_daily.set_permissions(role_everyone, send_messages=False)
+    await channel_daily.set_permissions(role_everyone, overwrite=closed_overwrite)
 
     await channel_gameday.send("This channel is now **open** until about 2.5 hours after the end of the game.")
-    await channel_gameday.set_permissions(role_everyone, send_messages=True)
+    await channel_gameday.set_permissions(role_everyone, overwrite=open_overwrite)
 
 
 async def switch_to_daily():
@@ -160,10 +167,10 @@ async def switch_to_daily():
     await channel_gameday.send(
         f"Game over - this channel is now **closed**. Please head back over to {channel_daily.mention}!"
     )
-    await channel_gameday.set_permissions(role_everyone, send_messages=False)
+    await channel_gameday.set_permissions(role_everyone, overwrite=closed_overwrite)
 
     await channel_daily.send("This channel is now **open** until next game.")
-    await channel_daily.set_permissions(role_everyone, send_messages=True)
+    await channel_daily.set_permissions(role_everyone, overwrite=open_overwrite)
 
 
 client = ChannelManagerClient()
