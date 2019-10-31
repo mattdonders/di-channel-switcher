@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 
 import aiohttp
 import asyncio
@@ -37,12 +38,9 @@ SLEEP_END_GAME = 9000  # 2.5 Hours
 SLEEP_REFRESH = 36000  # 10 Hours
 TIME_THRESHOLD = 3600  # 1 Hour - Switch to Gameday Channel
 
-# Permission Overwrites
-closed_overwrite = discord.PermissionOverwrite()
-closed_overwrite.send_messages = False
+# Get Global script date
+script_date = datetime.now().strftime("%Y-%m-%d")
 
-open_overwrite = discord.PermissionOverwrite()
-open_overwrite.send_messages = True
 
 
 class ChannelManagerClient(discord.Client):
@@ -63,9 +61,8 @@ class ChannelManagerClient(discord.Client):
 
     async def get_schedule(self):
         logging.info("Retrieving today's NHL daily schedule now.")
-        date = datetime.now().strftime("%Y-%m-%d")
         async with aiohttp.ClientSession() as cs:
-            async with cs.get(f"http://statsapi.web.nhl.com/api/v1/schedule?teamId=1&date={date}&expand=schedule.linescore") as r:
+            async with cs.get(f"http://statsapi.web.nhl.com/api/v1/schedule?teamId=1&date={script_date}&expand=schedule.linescore") as r:
                 return await r.json()  # returns dict
 
     async def game_state_check(self):
@@ -80,8 +77,9 @@ class ChannelManagerClient(discord.Client):
             if num_games == 0:
                 logging.info("No game scheduled today - sleep for 24 hours and come back tomorrow!")
                 await channel_notificiations.send("@here There is no game scheduled today - see you tomorrow!")
-                await asyncio.sleep(SLEEP_NO_GAME)
-                continue
+                # await asyncio.sleep(SLEEP_NO_GAME)
+                # continue
+                sys.exit()
 
             # If there are games today, get the start time details and setup our sleep schedule
             game = schedule.get("dates")[0].get("games")[0]
@@ -137,42 +135,63 @@ class ChannelManagerClient(discord.Client):
                         await asyncio.sleep(endgame_sleep_time)
                         await switch_to_daily()
 
-                    logging.info("Channels are swithced - sleeping for ~8 hours for the schedule to refresh.")
-                    await asyncio.sleep(SLEEP_REFRESH)
+                    # logging.info("Channels are swithced - sleeping for ~8 hours for the schedule to refresh.")
+                    # await asyncio.sleep(SLEEP_REFRESH)
+                    logging.info("Channels are swithced - script will restart tomorrow at 10AM to check again.")
+                    sys.exit()
 
 
 async def switch_to_gameday():
-    logging.info("Switching permissions to the Gameday channel.")
+    guild = discord.utils.get(client.guilds, id=GUILD)
+    role_everyone = guild.get_role(ROLE_EVERYONE)
+
+    logging.info("Closing down the daily channel.")
     channel_daily = client.get_channel(CHANNEL_DEVILSDAILY)
     channel_gameday = client.get_channel(CHANNEL_GAMEDAY)
 
-    guild = discord.utils.get(client.guilds, id=GUILD)
-    role_everyone = guild.get_role(ROLE_EVERYONE)
     await channel_daily.send(
         f"One hour until game time - this channel is now **closed**. Please use {channel_gameday.mention}!"
     )
-    await channel_daily.set_permissions(role_everyone, overwrite=closed_overwrite)
+    await close_channel(channel_daily, role_everyone)
 
+    logging.info("Opening up the gameday channel.")
     await channel_gameday.send("This channel is now **open** until about 2.5 hours after the end of the game.")
-    await channel_gameday.set_permissions(role_everyone, overwrite=open_overwrite)
+    await open_channel(channel_gameday, role_everyone)
 
 
 async def switch_to_daily():
-    logging.info("Switching permissions to the Devils Daily channel.")
-    channel_daily = client.get_channel(CHANNEL_DEVILSDAILY)
-    channel_gameday = client.get_channel(CHANNEL_GAMEDAY)
-
     guild = discord.utils.get(client.guilds, id=GUILD)
     role_everyone = guild.get_role(ROLE_EVERYONE)
+
+    logging.info("Closing down the game day channel.")
+    channel_gameday = client.get_channel(CHANNEL_GAMEDAY)
+    channel_daily = client.get_channel(CHANNEL_DEVILSDAILY)
+
     await channel_gameday.send(
         f"Game over - this channel is now **closed**. Please head back over to {channel_daily.mention}!"
     )
-    await channel_gameday.set_permissions(role_everyone, overwrite=closed_overwrite)
+    await close_channel(channel_gameday, role_everyone)
 
+    logging.info("Re-opening the daily channel.")
     await channel_daily.send("This channel is now **open** until next game.")
-    await channel_daily.set_permissions(role_everyone, overwrite=open_overwrite)
+    await open_channel(channel_daily, role_everyone)
+
+
+async def open_channel(channel, role):
+    open_overwrite = discord.PermissionOverwrite()
+    open_overwrite.send_messages = True
+
+    logging.info("A channel (name - %s) has been requested to be opened (role - %s).", channel.name, role.name)
+    await channel.set_permissions(role, overwrite=open_overwrite)
+
+
+async def close_channel(channel, role):
+    closed_overwrite = discord.PermissionOverwrite()
+    closed_overwrite.send_messages = False
+
+    logging.info("A channel (name - %s) has been requested to be closed (role - %s).", channel.name, role.name)
+    await channel.set_permissions(role, overwrite=closed_overwrite)
 
 
 client = ChannelManagerClient()
 client.run(TOKEN)
-
