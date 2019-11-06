@@ -199,7 +199,7 @@ if __name__ == "__main__":
     game = schedule.get("dates")[0].get("games")[0]
     game_end = game.get("linescore").get("periods")[-1].get("endTime")
     game_end = dateparser.parse(game_end)
-    now = datetime.now(game_date.tzinfo)
+    now = datetime.now(game_end.tzinfo)
     ss_since_end = (now - game_end).total_seconds()
 
     if ss_since_end > SLEEP_END_GAME:
