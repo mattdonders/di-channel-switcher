@@ -178,8 +178,8 @@ if __name__ == "__main__":
         loop.run_until_complete(gameday_client.start(TOKEN))
 
         gamestart_sleep_time = TIME_THRESHOLD + SLEEP_IN_GAME
-        logging(
-            f"Sleeping for %s seconds (1 hour + 10 minutes) to start checking again.",
+        logging.info(
+            "Sleeping for %s seconds (1 hour + 10 minutes) to start checking again.",
             gamestart_sleep_time,
         )
         time.sleep(gamestart_sleep_time)
