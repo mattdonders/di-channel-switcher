@@ -45,7 +45,7 @@ script_date = datetime.now().strftime("%Y-%m-%d")
 # Set global permission overwrites
 open_overwrite = discord.PermissionOverwrite()
 open_overwrite.send_messages = True
-q
+
 closed_overwrite = discord.PermissionOverwrite()
 closed_overwrite.send_messages = False
 
