@@ -184,8 +184,8 @@ if __name__ == "__main__":
         loop.run_until_complete(gameday_client.start(TOKEN))
 
         gamestart_sleep_time = TIME_THRESHOLD + SLEEP_IN_GAME
-        logging(
-            f"Sleeping for %s seconds (1 hour + 10 minutes) to start checking again.",
+        logging.info(
+            "Sleeping for %s seconds (1 hour + 10 minutes) to start checking again.",
             gamestart_sleep_time,
         )
         time.sleep(gamestart_sleep_time)
@@ -205,7 +205,7 @@ if __name__ == "__main__":
     game = schedule.get("dates")[0].get("games")[0]
     game_end = game.get("linescore").get("periods")[-1].get("endTime")
     game_end = dateparser.parse(game_end)
-    now = datetime.now(game_date.tzinfo)
+    now = datetime.now(game_end.tzinfo)
     ss_since_end = (now - game_end).total_seconds()
 
     if ss_since_end > SLEEP_END_GAME:
