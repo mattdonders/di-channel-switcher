@@ -45,7 +45,7 @@ script_date = datetime.now().strftime("%Y-%m-%d")
 # Set global permission overwrites
 open_overwrite = discord.PermissionOverwrite()
 open_overwrite.send_messages = True
-
+q
 closed_overwrite = discord.PermissionOverwrite()
 closed_overwrite.send_messages = False
 
@@ -159,18 +159,24 @@ if __name__ == "__main__":
         sleep_time_ss = time_until_game.total_seconds()
         sleep_time_hh = round(sleep_time_ss / 3600)
 
-        pregame_sleep_time = sleep_time_ss - TIME_THRESHOLD
+        pregame_sleep_time = sleep_time_ss - TIME_THRESHOLD - SLEEP_IN_GAME
         logging.info(
-            f"Sleeping for %s seconds (game_time - 1 hour) to switch the channels.",
+            f"Sleeping for %s seconds (game_time - 70 minutes) to warn about switching the channels.",
             pregame_sleep_time,
         )
         game_today_msg = (
             f"@here I have detected that there is a game today. I will sleep for about {sleep_time_hh} hours, "
-            "switch the channels and then finish sleeping until game time. See you later!"
+            "send a warning & switch the channels -- then finish sleeping until game time. See you later!"
         )
         client = ChannelManager(action='SENDMSG', msg=game_today_msg, channel_id=CHANNEL_NOTIFICATIONS)
         loop.run_until_complete(client.start(TOKEN))
         time.sleep(pregame_sleep_time)
+
+        logging.info("Sending warning & then sleeping for 10 more minutes to actually switch the channels.")
+        warning_msg = "This is your 10-minute channel switching warning. Please finish up your chats and wait I will be back shortly to switch channels."
+        client = ChannelManager(action='SENDMSG', msg=warning_msg, channel_id=CHANNEL_DEVILSDAILY)
+        loop.run_until_complete(client.start(TOKEN))
+        time.sleep(SLEEP_IN_GAME)
 
         # Temporarily open a Discord client to switch to the gameday channel
         logging.info("It is approximately 1 hour until game time, switch to the game day channel.")
@@ -213,6 +219,13 @@ if __name__ == "__main__":
             endgame_sleep_time,
             )
         time.sleep(endgame_sleep_time)
+
+        logging.info("Sending warning & then sleeping for 10 more minutes to actually switch the channels.")
+        warning_msg = "This is your 10-minute channel switching warning. Please finish up your chats and wait I will be back shortly to switch channels."
+        client = ChannelManager(action='SENDMSG', msg=warning_msg, channel_id=CHANNEL_GAMEDAY)
+        loop.run_until_complete(client.start(TOKEN))
+        time.sleep(SLEEP_IN_GAME)
+
         daily_client = ChannelManager(action='SWITCHTODAILY')
         loop.run_until_complete(daily_client.start(TOKEN))
 
